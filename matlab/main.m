@@ -17,12 +17,12 @@ u = @(c) (c.^(1-p.gamma)-1)./(1-p.gamma);
 uprime = @(c) c.^(-p.gamma);
 
 % Exog environment
-Na = 11;
+Na = 101;
 [P, a_grid] = rouwen(rho_a,mu_a,sig_a,0,Na);
 P = P';
 
 % Endog grid
-Nk = 20;
+Nk = 200;
 kss = fsolve( @(k) -1 + p.beta*(p.alpha*k^(p.alpha-1) + (1-p.delta)), 1);
 k_grid = exp( linspace(-0.2, 0.2, Nk) ) * kss;
 
@@ -56,13 +56,14 @@ opts = optimoptions('fsolve');
 opts.Display = 'none';
 opts.JacobPattern = sparse(kron(ones(2),eye(Na*Nk)));
 opts.Algorithm='trust-region';
+opts.UseParallel = true;
 
 % Define non-vectorized solver opts
 opts2 = opts;
 opts2.JacobPattern = ones(2);
 
 % Iterate
-MAXITER = 50;
+MAXITER = 10;
 iter = 1;
 tic;
 while iter <= MAXITER
@@ -73,8 +74,8 @@ while iter <= MAXITER
 	Cnext = exp(fC(A, KKp));
 
 	% Iterate
-	%[Kupd, logQ, logC] = iterate_vec(p,Kp,Qnext,Cnext,state_space,a_next,P3,Y,logC,logQ,uprime,opts);
-	[Kupd, logQ, logC] =      iterate(p,Kp,Qnext,Cnext,state_space,a_next,P, Y,logC,logQ,uprime,opts2);
+	[Kupd, logQ, logC] = iterate_vec(p,Kp,Qnext,Cnext,state_space,a_next,P3,Y,logC,logQ,uprime,opts);
+	%[Kupd, logQ, logC] =      iterate(p,Kp,Qnext,Cnext,state_space,a_next,P, Y,logC,logQ,uprime,opts2);
 
 	% Update interpolants
 	fK = griddedInterpolant(state_space, Kupd);
