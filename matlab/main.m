@@ -49,6 +49,7 @@ Y = exp(a_grid) .* k_grid.^p.alpha;
 % Initialize guesses for C and Q
 logC = fC(state_space);
 logQ = fQ(state_space);
+Kupd = fK(state_space);
 
 % Define vectorized solve opts
 opts = optimoptions('fsolve');
@@ -72,8 +73,8 @@ while iter <= MAXITER
 	Cnext = exp(fC(A, KKp));
 
 	% Iterate
-	[Kupd, logQ, logC] = iterate_vec(p,Kp,Qnext,Cnext,state_space,a_next,P3,Y,logC,logQ,uprime,opts);
-	%[Kupd, logQ, logC] =      iterate(p,Kp,Qnext,Cnext,state_space,a_next,P, Y,logC,logQ,uprime,opts2);
+	%[Kupd, logQ, logC] = iterate_vec(p,Kp,Qnext,Cnext,state_space,a_next,P3,Y,logC,logQ,uprime,opts);
+	[Kupd, logQ, logC] =      iterate(p,Kp,Qnext,Cnext,state_space,a_next,P, Y,logC,logQ,uprime,opts2);
 
 	% Update interpolants
 	fK = griddedInterpolant(state_space, Kupd);
