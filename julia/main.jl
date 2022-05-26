@@ -1,4 +1,5 @@
-using QuantEcon, Interpolations, NLsolve
+using Interpolations, NLsolve
+import QuantEcon.rouwenhorst
 
 Base.@kwdef struct Params
     β::Float64 = 0.99
@@ -8,7 +9,7 @@ Base.@kwdef struct Params
     ϕ::Float64 = 3.
 end
 
-function main(Nk = 11, maxit = 10)
+function main(;Na = 11, Nk = 200, maxit = 500)
     
     p = Params()
 
@@ -23,20 +24,22 @@ function main(Nk = 11, maxit = 10)
     end
 
     # Exog environment
-    Na = 101
     function exog_env()
         μ = 0
         σ = 0.02
         ρ = 0.8
 
-        mc = QuantEcon.rouwenhorst(Na,ρ,σ,μ)
+        mc = rouwenhorst(Na,ρ,σ*sqrt(1-ρ^2),μ)
         return mc.p, mc.state_values
     end
     
     P, a_grid = exog_env()
+    piprob = P^500
+    piprob = piprob[1:1,:]
+    check = sqrt( (piprob * a_grid.^2)[] .- (piprob * a_grid)[]^2)
 
     # Steady State
-    kss = ( (1 - p.β*(1-p.δ))/p.α ) ^ ( 1/(p.α-1) )
+    kss = ( (1 - p.β*(1-p.δ))/(p.α .* p.β) ) ^ ( 1/(p.α-1) )
     css = kss^p.α - p.δ * kss
     qss = p.β*p.α*kss^(p.α-1) / (1 - p.β*(1-p.δ))
 
@@ -76,31 +79,43 @@ function main(Nk = 11, maxit = 10)
             P3 .* p.β .* MU .* (p.α*exp.(a_next) .* Kp.^(p.α-1) + (1-p.δ).*Qnext),
              dims=3), dims=3)
 
-        fEE(c,q) = uprime(c) .* q .- RHS
-        fInv(c,q) = 1 .+ p.ϕ*(Kp./k_grid.-1) .- q
+        function equilibrium!(fx1,fx2,c,q)
+            uprime!(fx1,c)
+            fx1 .= fx1 .* q .- RHS
+            fx2 .= 1 .+ p.ϕ*(Kp./k_grid.-1) .- q
+        end
+
+        function alloc!(c,q,x)
+            c .= reshape( x[1:Na*Nk], Na, Nk)
+            q .= reshape( x[Na*Nk+1:end], Na, Nk)
+        end
 
         function alloc(x)
-            c = reshape( x[1:Na*Nk], Na, Nk)
-            q = reshape( x[Na*Nk+1:end], Na, Nk)
-            return c, q
+            x1 = reshape(view(x,1:Na*Nk),Na,Nk)
+            x2 = reshape(view(x,Na*Nk+1:2*Na*Nk),Na,Nk)
+            return x1, x2
         end
 
         function solveEqm!(fx,x)
-            c, q = alloc(x)
-            c .= exp.(c)
-            q .= exp.(q)
-            fx[1:Na*Nk] .= reshape(fEE(c,q),Na*Nk)
-            fx[Na*Nk+1:end] .= reshape(fInv(c,q),Na*Nk)
+            logc, logq = alloc(x)
+            c = exp.(logc)
+            q = exp.(logq)
+            err1, err2 = alloc(fx)
+            equilibrium!(err1,err2,c,q)
         end
         
         guess = vcat(logC[:], logQ[:])
         err = similar(guess)
         solveEqm!(err,guess)
 
-        result = nlsolve(solveEqm!, vcat(logC[:], logQ[:]), autodiff = :forward)
-        logC, logQ = alloc(result.zero)
-        
+        result = nlsolve(solveEqm!, guess, autodiff = :forward)
+        show(result.f_calls)
+        alloc!(logC, logQ, result.zero)
+
         Kupd .= Y .+ (1-p.δ).*k_grid - exp.(logC)
+
+        return converged(result)
+        #return true
     end
 
 
@@ -109,10 +124,13 @@ function main(Nk = 11, maxit = 10)
         Kp .= Kupd
         KKp = repeat(Kp,1,1,Na)
         Qnext = exp.( fQ.(A,KKp) )
-        Cnext = exp.( fQ.(A,KKp) )
+        Cnext = exp.( fC.(A,KKp) )
 
         # Iterate
-        update!(Kupd,logC,logQ,Cnext,Qnext)
+        conv = update!(Kupd,logC,logQ,Cnext,Qnext)
+        if !conv
+            println("No solution in iteration $iter")
+        end
 
         # Update Interpolants
         fK.itp.coefs .= Kupd
@@ -127,7 +145,7 @@ function main(Nk = 11, maxit = 10)
         return dist
     end
 
-    iterate!()
+    #iterate!()
     t0 = time()
     while iter <= maxit
         dist = iterate!()
@@ -140,8 +158,9 @@ function main(Nk = 11, maxit = 10)
     t1 = time()
     out = (t1-t0) / iter
 
-
+    return (; fK, fC, fQ), out
 
 end
 
-print(1000 * main(101, 500))
+sol, t = main()
+print(1000 * t)

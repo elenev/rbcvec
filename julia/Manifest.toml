@@ -21,10 +21,22 @@ git-tree-sha1 = "f87e559f87a45bece9c9ed97458d3afe98b1ebb9"
 uuid = "ec485272-7323-5ecc-a04f-4719b315124d"
 version = "0.1.0"
 
+[[ArrayInterface]]
+deps = ["ArrayInterfaceCore", "Compat", "IfElse", "LinearAlgebra", "Static"]
+git-tree-sha1 = "4244e1be1dd8bae3c26e97dd84c08c56deb3881c"
+uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
+version = "6.0.1"
+
 [[ArrayInterfaceCore]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
 git-tree-sha1 = "8a9c02f9d323d4dd8a47245abb106355bf7b45e6"
 uuid = "30b0a656-2188-435a-8636-2ec0e6a096e2"
+version = "0.1.2"
+
+[[ArrayInterfaceStaticArrays]]
+deps = ["Adapt", "ArrayInterface", "LinearAlgebra", "Static", "StaticArrays"]
+git-tree-sha1 = "d7dc30474e73173a990eca86af76cae8790fa9f2"
+uuid = "b0d46f97-bff5-4637-a19a-dd75974142cd"
 version = "0.1.2"
 
 [[Artifacts]]
@@ -56,6 +68,11 @@ deps = ["LinearAlgebra"]
 git-tree-sha1 = "f641eb0a4f00c343bbc32346e1217b86f3ce9dad"
 uuid = "49dc2e85-a5d0-5ad3-a950-438e2897f1b9"
 version = "0.5.1"
+
+[[Cassette]]
+git-tree-sha1 = "063b2e77c5537a548c5bf2f44161f1d3e1ab3227"
+uuid = "7057c7e9-c182-5462-911a-8362d720325c"
+version = "0.3.10"
 
 [[ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
@@ -202,11 +219,22 @@ git-tree-sha1 = "2f18915445b248731ec5db4e4a17e451020bf21e"
 uuid = "f6369f11-7733-5829-9624-2563aa707210"
 version = "0.10.30"
 
+[[Graphs]]
+deps = ["ArnoldiMethod", "Compat", "DataStructures", "Distributed", "Inflate", "LinearAlgebra", "Random", "SharedArrays", "SimpleTraits", "SparseArrays", "Statistics"]
+git-tree-sha1 = "4888af84657011a65afc7a564918d281612f983a"
+uuid = "86223c79-3864-5bf0-83f7-82e725a168b6"
+version = "1.7.0"
+
 [[HypergeometricFunctions]]
 deps = ["DualNumbers", "LinearAlgebra", "SpecialFunctions", "Test"]
 git-tree-sha1 = "cb7099a0109939f16a4d3b572ba8396b1f6c7c31"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.10"
+
+[[IfElse]]
+git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
+uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
+version = "0.1.1"
 
 [[Inflate]]
 git-tree-sha1 = "f5fc07d4e706b84f72d54eedcc1c13d92fb0871c"
@@ -556,11 +584,29 @@ version = "1.0.1"
 deps = ["LinearAlgebra", "Random"]
 uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
+[[SparseDiffTools]]
+deps = ["Adapt", "ArrayInterfaceCore", "ArrayInterfaceStaticArrays", "Compat", "DataStructures", "FiniteDiff", "ForwardDiff", "Graphs", "LinearAlgebra", "Requires", "SparseArrays", "StaticArrays", "VertexSafeGraphs"]
+git-tree-sha1 = "f71f06cce80d21e9b93933bc04b1334bb90259ab"
+uuid = "47a9eef4-7e08-11e9-0b38-333d64bd3804"
+version = "1.23.0"
+
+[[SparsityDetection]]
+deps = ["Cassette", "DocStringExtensions", "LinearAlgebra", "SparseArrays", "SpecialFunctions"]
+git-tree-sha1 = "9e182a311d169cb9fe0c6501aa252983215fe692"
+uuid = "684fba80-ace3-11e9-3d08-3bc7ed6f96df"
+version = "0.3.4"
+
 [[SpecialFunctions]]
 deps = ["ChainRulesCore", "IrrationalConstants", "LogExpFunctions", "OpenLibm_jll", "OpenSpecFun_jll"]
 git-tree-sha1 = "004051c3d87ab610e1706e8a24bd0b2b635fcdf1"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
 version = "1.8.5"
+
+[[Static]]
+deps = ["IfElse"]
+git-tree-sha1 = "5d2c08cef80c7a3a8ba9ca023031a85c263012c5"
+uuid = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
+version = "0.6.6"
 
 [[StaticArrays]]
 deps = ["LinearAlgebra", "Random", "Statistics"]
@@ -623,6 +669,12 @@ version = "1.0.2"
 
 [[Unicode]]
 uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+
+[[VertexSafeGraphs]]
+deps = ["Graphs"]
+git-tree-sha1 = "8351f8d73d7e880bfc042a8b6922684ebeafb35c"
+uuid = "19fa3120-7c27-5ec5-8db8-b0b0aa330d6f"
+version = "0.2.0"
 
 [[WoodburyMatrices]]
 deps = ["LinearAlgebra", "SparseArrays"]

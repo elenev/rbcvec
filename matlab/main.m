@@ -17,7 +17,7 @@ u = @(c) (c.^(1-p.gamma)-1)./(1-p.gamma);
 uprime = @(c) c.^(-p.gamma);
 
 % Exog environment
-Na = 101;
+Na = 11;
 [P, a_grid] = rouwen(rho_a,mu_a,sig_a,0,Na);
 P = P';
 
@@ -25,6 +25,7 @@ P = P';
 Nk = 200;
 kss = fsolve( @(k) -1 + p.beta*(p.alpha*k^(p.alpha-1) + (1-p.delta)), 1);
 k_grid = exp( linspace(-0.2, 0.2, Nk) ) * kss;
+
 
 % Steady state price
 qss = p.beta*p.alpha*kss^(p.alpha-1) / (1 - p.beta*(1-p.delta));
@@ -40,8 +41,8 @@ A = repmat(a_grid, [1,Nk,Na]);
 % Interpolants
 state_space = {a_grid, k_grid};
 fK = griddedInterpolant(state_space, repmat(k_grid,Na,1));
-fQ = griddedInterpolant(state_space, log(qss)*ones(Na,Nk));
-fC = griddedInterpolant(state_space, log(css)*ones(Na,Nk));
+fQ = griddedInterpolant(state_space, log(qss)*ones(Na,Nk) );
+fC = griddedInterpolant(state_space,  log(css)*ones(Na,Nk) );
 
 % Precomputed output (constant at a given grid point)
 Y = exp(a_grid) .* k_grid.^p.alpha;
@@ -63,7 +64,7 @@ opts2 = opts;
 opts2.JacobPattern = ones(2);
 
 % Iterate
-MAXITER = 10;
+MAXITER = 100;
 iter = 1;
 tic;
 while iter <= MAXITER
