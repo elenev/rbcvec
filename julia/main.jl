@@ -43,14 +43,14 @@ function main(;Na = 11, Nk = 200, maxit = 500)
     end
     
     P, a_grid = exog_env()
-    piprob = P^500
-    piprob = piprob[1:1,:]
-    check = sqrt( (piprob * a_grid.^2)[] .- (piprob * a_grid)[]^2)
+    #piprob = P^500
+    #piprob = piprob[1:1,:]
+    #check = sqrt( (piprob * a_grid.^2)[] .- (piprob * a_grid)[]^2)
 
     # Steady State
     kss = ( (1 - p.β*(1-p.δ))/(p.α .* p.β) ) ^ ( 1/(p.α-1) )
     css = kss^p.α - p.δ * kss
-    qss = p.β*p.α*kss^(p.α-1) / (1 - p.β*(1-p.δ))
+    qss = p.β*p.α*kss^(p.α-1) / (1 - p.β*(1-p.δ)) # should be 1
 
     # Endog grid
     k_grid = exp.( LinRange(-0.2, 0.2, Nk) )' * kss
@@ -78,6 +78,8 @@ function main(;Na = 11, Nk = 200, maxit = 500)
     Kp = copy(Kupd)
     MU = zeros(Na,Nk,Na)
     RHS = zeros(Na,Nk)
+    Qnext = similar(MU)
+    Cnext = similar(MU)
 
     # Sparsity pattern
     sp = kron( ones(2,2), sparse(1:Nk*Na, 1:Nk*Na,true) )
@@ -88,8 +90,12 @@ function main(;Na = 11, Nk = 200, maxit = 500)
 
     function update!(Kupd,logC,logQ,Cnext,Qnext)
         uprime!(MU,Cnext)
+        tmp = P3 .* p.β .* MU .* (p.α.*exp.(a_next) .* Kp.^(p.α-1) + (1-p.δ).*Qnext)
+        #@tturbo inline=true tmp2 = P3 .* p.β .* MU .* (p.α.*exp.(a_next) .* Kp.^(p.α-1) + (1-p.δ).*Qnext)
+        #println("tmp[end,end,end] is $(tmp[end,end,end]) but tmp2[end,end,end] is $(tmp2[end,end,end]).")
+        #println("Full comparison returns: $(tmp ≈ tmp2)")
         RHS .= dropdims( sum( 
-            P3 .* p.β .* MU .* (p.α*exp.(a_next) .* Kp.^(p.α-1) + (1-p.δ).*Qnext),
+            tmp,
              dims=3), dims=3)
 
         function equilibrium!(fx1,fx2,c,q)
@@ -118,8 +124,8 @@ function main(;Na = 11, Nk = 200, maxit = 500)
         end
         
         guess = vcat(logC[:], logQ[:])
-        err = similar(guess)
-        solveEqm!(err,guess)
+        #err = similar(guess)
+        #solveEqm!(err,guess)
 
         #result = nlsolve(solveEqm!, guess, autodiff = :forward)
         result = sparse_nlsolve(solveEqm!, guess; sparsity=sp, colorvec=colors)
@@ -134,7 +140,7 @@ function main(;Na = 11, Nk = 200, maxit = 500)
 
 
     function iterate!(fK,fQ,fC,Kupd)
-        # Get next period Q and c
+        # Get next period Q and C
         Kp .= Kupd
         KKp = repeat(Kp,1,1,Na)
         Qnext = exp.( fQ.(A,KKp) )
