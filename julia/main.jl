@@ -9,6 +9,18 @@ Base.@kwdef struct Params
     ϕ::Float64 = 3.
 end
 
+function sparsesolve(f!, x, sp)
+    fx = similar(x)
+    J = Float64.(sp)
+    colors = matrix_colors(J)
+    #jac_cache = ForwardColorJacCache(f!,  x, dx=fx; colorvec = colors)
+    #jac!(J,x) = forwarddiff_color_jacobian!(J,f!,x,jac_cache)
+    jac!(J,x) = forwarddiff_color_jacobian!(J,f!,x,colorvec=colors)
+
+    df=OnceDifferentiable(f!,jac!,x,fx,J)
+    return nlsolve(df,x)
+end
+
 function main(;Na = 11, Nk = 200, maxit = 500)
     
     p = Params()
@@ -70,6 +82,9 @@ function main(;Na = 11, Nk = 200, maxit = 500)
     MU = zeros(Na,Nk,Na)
     RHS = zeros(Na,Nk)
 
+    # Sparsity pattern
+    sp = kron( ones(2,2), sparse(1:Nk*Na, 1:Nk*Na,true) )
+
     # Iterate
     iter = 1
 
@@ -108,8 +123,9 @@ function main(;Na = 11, Nk = 200, maxit = 500)
         err = similar(guess)
         solveEqm!(err,guess)
 
-        result = nlsolve(solveEqm!, guess, autodiff = :forward)
-        show(result.f_calls)
+        #result = nlsolve(solveEqm!, guess, autodiff = :forward)
+        result = sparsesolve(solveEqm!, guess, sp)
+        #show(result.f_calls)
         alloc!(logC, logQ, result.zero)
 
         Kupd .= Y .+ (1-p.δ).*k_grid - exp.(logC)
