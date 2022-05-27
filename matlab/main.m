@@ -93,7 +93,7 @@ while iter <= MAXITER
 	end
 end
 time = toc;
-disp(time/iter);
+disp(time/iter*1000);
 
 % Wrapper around the equilibrium conditions
 function err = solveEqm(x,fEE,fMC,Na,Nk)
