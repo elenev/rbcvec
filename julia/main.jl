@@ -1,4 +1,4 @@
-using Interpolations, NLsolve, LoopVectorization, SparseArrays, SparseDiffTools
+using Interpolations, NLsolve, SparseArrays, SparseDiffTools
 import QuantEcon.rouwenhorst
 
 Base.@kwdef struct Params
