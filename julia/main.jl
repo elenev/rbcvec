@@ -80,6 +80,10 @@ function main(;Na = 11, Nk = 200, maxit = 500)
     RHS = zeros(Na,Nk)
     Qnext = similar(MU)
     Cnext = similar(MU)
+    tmp = zeros(Na,Nk,Na)
+
+    # P transpose
+    # Pt = P'
 
     # Sparsity pattern
     sp = kron( ones(2,2), sparse(1:Nk*Na, 1:Nk*Na,true) )
@@ -90,13 +94,19 @@ function main(;Na = 11, Nk = 200, maxit = 500)
 
     function update!(Kupd,logC,logQ,Cnext,Qnext)
         uprime!(MU,Cnext)
-        tmp = P3 .* p.β .* MU .* (p.α.*exp.(a_next) .* Kp.^(p.α-1) + (1-p.δ).*Qnext)
+        @. tmp = P3 * p.β * MU * (p.α*exp(a_next) * Kp^(p.α-1) + (1-p.δ)*Qnext)
         #@tturbo inline=true tmp2 = P3 .* p.β .* MU .* (p.α.*exp.(a_next) .* Kp.^(p.α-1) + (1-p.δ).*Qnext)
         #println("tmp[end,end,end] is $(tmp[end,end,end]) but tmp2[end,end,end] is $(tmp2[end,end,end]).")
         #println("Full comparison returns: $(tmp ≈ tmp2)")
-        RHS .= dropdims( sum( 
-            tmp,
-             dims=3), dims=3)
+        RHS .= dropdims( sum( tmp, dims=3), dims=3)
+
+        #@inbounds for j=1:Nk, i=1:Na
+        #   RHS[i,j] = P[i,:]' * (p.β .* MU[i,j,:] .* (p.α.*exp.(a_grid) .* Kp[i,j].^(p.α-1) + (1-p.δ).*Qnext[i,j,:]) )
+        #end
+
+        #@inbounds Threads.@threads for i=1:Na
+        #   RHS[i,:] = (p.β .* MU[i,:,:] .* (p.α.*exp.(a_grid') .* Kp[i,:].^(p.α-1) + (1-p.δ).*Qnext[i,:,:]) ) * Pt[:,i]
+        #end
 
         function equilibrium!(fx1,fx2,c,q)
             uprime!(fx1,c)
