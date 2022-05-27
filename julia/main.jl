@@ -1,4 +1,4 @@
-using Interpolations, NLsolve
+using Interpolations, NLsolve, LoopVectorization, SparseArrays, SparseDiffTools
 import QuantEcon.rouwenhorst
 
 Base.@kwdef struct Params
@@ -9,15 +9,12 @@ Base.@kwdef struct Params
     ϕ::Float64 = 3.
 end
 
-function sparsesolve(f!, x, sp)
-    fx = similar(x)
-    J = Float64.(sp)
-    colors = matrix_colors(J)
-    #jac_cache = ForwardColorJacCache(f!,  x, dx=fx; colorvec = colors)
-    #jac!(J,x) = forwarddiff_color_jacobian!(J,f!,x,jac_cache)
-    jac!(J,x) = forwarddiff_color_jacobian!(J,f!,x,colorvec=colors)
-
-    df=OnceDifferentiable(f!,jac!,x,fx,J)
+function sparse_nlsolve(f!, x; sparsity=sparse(1:length(x),1:length(x),true), colorvec=matrix_colors(sparsity))
+    dx = similar(x)
+    J = Float64.(sparsity)
+    jac_cache = ForwardColorJacCache(f!, Array(x), 2; dx, colorvec, sparsity)
+    jac!(J,x) = forwarddiff_color_jacobian!(J,f!,x,jac_cache)
+    df=OnceDifferentiable(f!,jac!,x,dx,J)
     return nlsolve(df,x)
 end
 
@@ -26,7 +23,7 @@ function main(;Na = 11, Nk = 200, maxit = 500)
     p = Params()
 
     function uprime!(MU,c)
-        MU .= c.^(-p.γ)
+        @. MU = c^(-p.γ)
     end
 
     function uprime(c)
@@ -84,6 +81,7 @@ function main(;Na = 11, Nk = 200, maxit = 500)
 
     # Sparsity pattern
     sp = kron( ones(2,2), sparse(1:Nk*Na, 1:Nk*Na,true) )
+    colors = matrix_colors(sp)
 
     # Iterate
     iter = 1
@@ -96,8 +94,8 @@ function main(;Na = 11, Nk = 200, maxit = 500)
 
         function equilibrium!(fx1,fx2,c,q)
             uprime!(fx1,c)
-            fx1 .= fx1 .* q .- RHS
-            fx2 .= 1 .+ p.ϕ*(Kp./k_grid.-1) .- q
+            @. fx1 = fx1 * q - RHS
+            @. fx2 = 1 + p.ϕ*(Kp/k_grid-1) - q
         end
 
         function alloc!(c,q,x)
@@ -124,18 +122,18 @@ function main(;Na = 11, Nk = 200, maxit = 500)
         solveEqm!(err,guess)
 
         #result = nlsolve(solveEqm!, guess, autodiff = :forward)
-        result = sparsesolve(solveEqm!, guess, sp)
+        result = sparse_nlsolve(solveEqm!, guess; sparsity=sp, colorvec=colors)
         #show(result.f_calls)
         alloc!(logC, logQ, result.zero)
 
-        Kupd .= Y .+ (1-p.δ).*k_grid - exp.(logC)
+        @. Kupd = Y + (1-p.δ)*k_grid - exp(logC)
 
         return converged(result)
         #return true
     end
 
 
-    function iterate!()
+    function iterate!(fK,fQ,fC,Kupd)
         # Get next period Q and c
         Kp .= Kupd
         KKp = repeat(Kp,1,1,Na)
@@ -164,7 +162,7 @@ function main(;Na = 11, Nk = 200, maxit = 500)
     #iterate!()
     t0 = time()
     while iter <= maxit
-        dist = iterate!()
+        dist = iterate!(fK,fQ,fC,Kupd)
         if dist < -5
             break
         else
