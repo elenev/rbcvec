@@ -53,3 +53,17 @@ for (i,n) in enumerate(nvec)
     allocs[i] = b.allocs
 end
 return nvec, times, allocs
+
+
+
+mutable struct MyStruct
+    f::Function
+end
+
+mutable struct MyStruct2{F<:Function}
+    f::F
+end
+
+function func(a)
+    return a + 5
+end

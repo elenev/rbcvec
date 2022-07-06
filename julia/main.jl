@@ -18,7 +18,7 @@ function sparse_nlsolve(f!, x; sparsity=sparse(1:length(x),1:length(x),true), co
     return nlsolve(df,x)
 end
 
-function main(;Na = 11, Nk = 200, maxit = 500)
+function main(;Na = 11, Nk = 200, maxit = 500, mode=:vec)
     
     p = Params()
 
@@ -30,6 +30,10 @@ function main(;Na = 11, Nk = 200, maxit = 500)
         margUtil = similar(c)
         uprime!(margUtil,c)
         return margUtil
+    end
+    
+    function uprime(c::Number)
+        return c^(-p.γ)
     end
 
     # Exog environment
@@ -89,8 +93,40 @@ function main(;Na = 11, Nk = 200, maxit = 500)
     sp = kron( ones(2,2), sparse(1:Nk*Na, 1:Nk*Na,true) )
     colors = matrix_colors(sp)
 
+    # Thread pattern
+    thread_pattern = [1:3, 4:6, 7:9, 10:11]
+    thread_sp = map( idc -> kron( ones(2,2), sparse(1:Nk*length(idc), 1:Nk*length(idc),true) ), thread_pattern)
+    thread_colors = map( matrix_colors, thread_sp) 
+
     # Iterate
     iter = 1
+
+    function update_point(a, k, pnext, Knext_row, Cnext_row, Qnext_row, guess)
+        mu_next = uprime(Cnext_row)
+        rhs_tilde = @. p.β * mu_next * (p.α*exp(a_grid) * Knext_row^(p.α-1) + (1-p.δ)*Qnext_row)
+        rhs = (pnext * rhs_tilde)[]
+
+        function solveEqm!(fx,x)
+            c = exp(x[1])
+            q = exp(x[2])
+            fx[1] = c^(-p.γ) * q - rhs
+            fx[2] = 1 + p.ϕ*(Knext_row/k-1) - q
+        end
+
+        #test = zeros(2);
+        #solveEqm!(test,guess)
+        #display(test)
+
+        result = nlsolve(solveEqm!, guess)
+        if !converged(result)
+            println("No solution in iteration $iter at point ($a,$k)")
+        end
+        logc = result.zero[1]
+        logq = result.zero[2]
+
+        kupd = exp(a)*k^p.α + (1-p.δ)*k - exp(logc)
+        return kupd, logc, logq
+    end
 
     function update!(Kupd,logC,logQ,Cnext,Qnext)
         uprime!(MU,Cnext)
@@ -148,8 +184,53 @@ function main(;Na = 11, Nk = 200, maxit = 500)
         #return true
     end
 
+    function update_thread!(Kupdt,logCt,logQt,Cnextt,Qnextt,t,spt,colorst)
+        Nat = size(logCt,1)
+        MUt = uprime(Cnextt)
+        Pt = P3[t,:,:]
+        Kpt = Kp[t,:]
+        tmpt = @. Pt * p.β * MUt * (p.α*exp(a_next) * Kpt^(p.α-1) + (1-p.δ)*Qnextt)
 
-    function iterate!(fK,fQ,fC,Kupd)
+        RHSt = dropdims( sum( tmpt, dims=3), dims=3)
+
+        function equilibrium!(fx1,fx2,c,q)
+            uprime!(fx1,c)
+            @. fx1 = fx1 * q - RHSt
+            @. fx2 = 1 + p.ϕ*(Kpt/k_grid-1) - q
+        end
+
+        function alloc!(c,q,x)
+            c .= reshape( x[1:Nat*Nk], Nat, Nk)
+            q .= reshape( x[Nat*Nk+1:end], Nat, Nk)
+        end
+
+        function alloc(x)
+            x1 = reshape(view(x,1:Nat*Nk),Nat,Nk)
+            x2 = reshape(view(x,Nat*Nk+1:2*Nat*Nk),Nat,Nk)
+            return x1, x2
+        end
+
+        function solveEqm!(fx,x)
+            logc, logq = alloc(x)
+            c = exp.(logc)
+            q = exp.(logq)
+            err1, err2 = alloc(fx)
+            equilibrium!(err1,err2,c,q)
+        end
+        
+        guess = vcat(logCt[:], logQt[:])
+
+
+        result = sparse_nlsolve(solveEqm!, guess; sparsity=spt, colorvec=colorst)
+        alloc!(logCt, logQt, result.zero)
+
+        @. Kupdt = Y[t,:] + (1-p.δ)*k_grid - exp(logCt)
+
+        return converged(result)
+    end
+
+
+    function iterate!(fK,fQ,fC,Kupd;mode=:vec)
         # Get next period Q and C
         Kp .= Kupd
         KKp = repeat(Kp,1,1,Na)
@@ -157,9 +238,25 @@ function main(;Na = 11, Nk = 200, maxit = 500)
         Cnext = exp.( fC.(A,KKp) )
 
         # Iterate
-        conv = update!(Kupd,logC,logQ,Cnext,Qnext)
-        if !conv
-            println("No solution in iteration $iter")
+        if mode == :vec 
+            conv = update!(Kupd,logC,logQ,Cnext,Qnext)
+            if !conv
+                println("No solution in iteration $iter")
+            end
+        elseif mode == :element
+            for (j,k) in enumerate(k_grid), (i, a) in enumerate(a_grid)
+                guess = [logC[i,j], logQ[i,j]]
+                Kupd[i,j], logC[i,j], logQ[i,j] = 
+                    update_point(a,k,P[i:i,:],Kp[i,j],Cnext[i,j,:],Qnext[i,j,:], guess)
+            end
+        elseif mode == :threadvec
+            conv = similar(thread_pattern, Bool)
+            for (i,t) in enumerate(thread_pattern)
+                conv = update_thread!(Kupd[t,:], logC[t,:], logQ[t,:], Cnext[t,:,:], Qnext[t,:,:], t,thread_sp[i],thread_colors[i])
+                if !conv
+                    println("No solution in iteration $iter, exog states $t")
+                end
+            end
         end
 
         # Update Interpolants
@@ -178,7 +275,7 @@ function main(;Na = 11, Nk = 200, maxit = 500)
     #iterate!()
     t0 = time()
     while iter <= maxit
-        dist = iterate!(fK,fQ,fC,Kupd)
+        dist = iterate!(fK,fQ,fC,Kupd;mode)
         if dist < -5
             break
         else
