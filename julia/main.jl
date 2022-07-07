@@ -94,7 +94,8 @@ function main(;Na = 11, Nk = 200, maxit = 500, mode=:vec)
     colors = matrix_colors(sp)
 
     # Thread pattern
-    thread_pattern = [1:3, 4:6, 7:9, 10:11]
+    thread_pattern = [1:2, 3:4, 5:6, 7:8, 9:10, [11]]
+    #thread_pattern = [[1],[2],[3],4:5]
     thread_sp = map( idc -> kron( ones(2,2), sparse(1:Nk*length(idc), 1:Nk*length(idc),true) ), thread_pattern)
     thread_colors = map( matrix_colors, thread_sp) 
 
@@ -226,6 +227,7 @@ function main(;Na = 11, Nk = 200, maxit = 500, mode=:vec)
 
         @. Kupdt = Y[t,:] + (1-p.δ)*k_grid - exp(logCt)
 
+
         return converged(result)
     end
 
@@ -251,11 +253,13 @@ function main(;Na = 11, Nk = 200, maxit = 500, mode=:vec)
             end
         elseif mode == :threadvec
             conv = similar(thread_pattern, Bool)
-            for (i,t) in enumerate(thread_pattern)
-                conv = update_thread!(Kupd[t,:], logC[t,:], logQ[t,:], Cnext[t,:,:], Qnext[t,:,:], t,thread_sp[i],thread_colors[i])
+            Threads.@threads for i in eachindex(thread_pattern)
+                t = thread_pattern[i]
+                conv = update_thread!(view(Kupd,t,:), view(logC,t,:), view(logQ,t,:), view(Cnext,t,:,:), view(Qnext,t,:,:), t,thread_sp[i],thread_colors[i])
                 if !conv
                     println("No solution in iteration $iter, exog states $t")
                 end
+                #display(Kupd[t,:])
             end
         end
 
@@ -264,6 +268,8 @@ function main(;Na = 11, Nk = 200, maxit = 500, mode=:vec)
         #fK .= LinearInterpolation(state_space, Kupd, extrapolation_bc = Line())
         fQ.itp.coefs .= logQ
         fC.itp.coefs .= logC
+
+        #display(Kupd)
 
         # Check and report convergence
         dist = log10( maximum( abs.(Kupd-Kp)) )
@@ -289,5 +295,4 @@ function main(;Na = 11, Nk = 200, maxit = 500, mode=:vec)
 
 end
 
-sol, t = main()
-print(1000 * t)
+sol, t = main(mode = :vec); print(1000 * t)
